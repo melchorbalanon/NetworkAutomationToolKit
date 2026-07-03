@@ -1,87 +1,75 @@
 import os
 from dotenv import load_dotenv
 
-# I-load ang mga variables mula sa .env file
 load_dotenv()
 
-SIMULATION_MODE = True
+# Gagawin nating FALSE ang simulation mode para sa error handling demonstration, 
+# para makita natin kung paano sumasalo ng totoong errors ang try-except block.
+SIMULATION_MODE = False
 
-# Hugutin ang iisang secure password/user na ibinabahagi ng mga devices mo (Common Lab Credentials)
 device_user = os.getenv("DEVICE_USER")
 device_pass = os.getenv("DEVICE_PASS")
 
 print("=========================================")
-print("   MODULE 3: MULTI-DEVICE AUTOMATION     ")
+print("     MODULE 4: ERROR HANDLING (TRY)      ")
 print("=========================================")
 
-# 1. Listahan ng maraming devices sa network (Multi-Device Inventory)
+# Dito, sinadya nating lagyan ng maling IP address (192.168.1.99) ang pangalawang switch
+# para ma-simulate natin kung paano hahawakan ng script ang koneksyong mabibigo.
 network_devices = [
     {
         "device_type": "cisco_ios",
-        "host": "192.168.1.1",
+        "host": "192.168.1.1", # Ito ay magda-dry-run ng maayos sa simulation fall-through
         "username": device_user,
         "password": device_pass,
-        "port": 22,
         "name": "Core-Switch-01"
     },
     {
         "device_type": "cisco_ios",
-        "host": "192.168.1.2",
+        "host": "192.168.1.99", # ⚠️ DOWN / OFFLINE DEVICE SIMULATION
         "username": device_user,
         "password": device_pass,
-        "port": 22,
-        "name": "Access-Switch-01"
+        "name": "Access-Switch-01 (OFFLINE TEST)"
     },
     {
         "device_type": "cisco_ios",
-        "host": "192.168.1.3",
+        "host": "192.168.1.3", # Dapat ma-configure pa rin ito kahit nag-error ang nauna!
         "username": device_user,
         "password": device_pass,
-        "port": 22,
         "name": "Access-Switch-02"
     }
 ]
 
-# Listahan ng VLAN configuration na ibabato sa LAHAT ng switches
-vlan_configs = [
-    "vlan 20",
-    "name IP_Phones_VLAN",
-    "exit"
-]
+vlan_configs = ["vlan 30", "name Guest_VLAN", "exit"]
 
-# 2. Ang Python For-Loop para sa pag-iterate sa bawat device
 for device in network_devices:
-    print(f"\n[LOOP] Sinasimulan ang proseso para sa: {device['name']} ({device['host']})...")
+    print(f"\n[LOOP] Sinusubukang i-configure ang: {device['name']} ({device['host']})...")
     
-    if SIMULATION_MODE:
-        print(f"   -> Connecting via SSH to {device['host']} using user '{device['username']}'...")
-        print("   ✅ Matagumpay ang koneksyon!")
-        print("   -> Ipinapadala ang mga configuration commands...")
-        
-        for cmd in vlan_configs:
-            print(f"      Applying: {cmd}")
+    # 1. ANG TRY BLOCK: Dito isinusulat ang code na pwedeng mag-error
+    try:
+        if SIMULATION_MODE:
+            print(f"   [SIMULATION] Connected to {device['name']}.")
+        else:
+            # Dahil walang totoong device sa lab ngayon, itong linya na ito ay magbabato ng error.
+            # Imbes na mag-crash ang buong program, sasaluhin ito ng 'except' sa ilalim!
+            print(f"   -> Kumokonekta sa {device['host']}...")
             
-        print(f"   ✅ [SIMULATION] Tapos na i-configure ang {device['name']}. Ligtas na dinisconnect.")
-        print("-" * 50)
-        
-    else:
-        try:
-            from netmiko import ConnectHandler
-            # Gagawa ng kopya ng dictionary na walang 'name' key para hindi mag-error si Netmiko
-            netmiko_device = device.copy()
-            netmiko_device.pop("name")
-            
-            print(f"   -> Kumokonekta nang live sa {device['name']}...")
-            net_connect = ConnectHandler(**netmiko_device)
-            
-            output = net_connect.send_config_set(vlan_configs)
-            print(output)
-            
-            net_connect.disconnect()
-            print(f"   ✅ Tapos na ang {device['name']}.")
-        except Exception as e:
-            print(f"   ❌ Error sa {device['name']}: {e}")
+            # Sinadya nating i-trigger ang error dito para sa lesson
+            if device["host"] == "192.168.1.99":
+                raise ConnectionTimeoutError("Netmiko Timeout: Connection to device timed out after 15 seconds.")
+            else:
+                # Kunwari ay matagumpay ang iba para makita ang tuloy-tuloy na loop
+                print(f"   ✅ [MOCK LIVE] Matagumpay na naipadala ang config sa {device['name']}!")
+
+    # 2. ANG EXCEPT BLOCK: Ito ang sasalo kapag sumabog ang code sa 'try'
+    except Exception as error_message:
+        print(f"   ❌ [ERROR CAUGHT] Hindi ma-konekta ang {device['name']}.")
+        print(f"   ⚠️ Detalye ng Error: {error_message}")
+        print("   -> Ligtas na nilaktawan ang device na ito. Ipinagpapatuloy ang script...")
 
 print("\n=========================================")
-print("  PROSESO TAPOS: Lahat ng devices ay napa-run na! ")
+print(" PROSESO TAPOS: Hindi nag-crash ang script kahit may error! ")
 print("=========================================")
+
+# Simple helper para sa simulation structural error handling
+class ConnectionTimeoutError(Exception): pass
