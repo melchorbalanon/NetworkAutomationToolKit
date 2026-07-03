@@ -1,80 +1,87 @@
 import os
 from dotenv import load_dotenv
 
-# 1. I-load ang mga variables mula sa .env file
+# I-load ang mga variables mula sa .env file
 load_dotenv()
 
 SIMULATION_MODE = True
 
-# 2. Hugutin ang credentials para sa Device Connection Dictionary
-cisco_router = {
-    "device_type": "cisco_ios",
-    "host": os.getenv("DEVICE_HOST"),
-    "username": os.getenv("DEVICE_USER"),
-    "password": os.getenv("DEVICE_PASS"),
-    "port": 22,
-}
+# Hugutin ang iisang secure password/user na ibinabahagi ng mga devices mo (Common Lab Credentials)
+device_user = os.getenv("DEVICE_USER")
+device_pass = os.getenv("DEVICE_PASS")
 
 print("=========================================")
-print("  MODULE 3: SECURE CONFIGURATION CHANGE   ")
+print("   MODULE 3: MULTI-DEVICE AUTOMATION     ")
 print("=========================================")
 
-# Siguraduhin muna na may laman ang hinugot na credentials
-if not cisco_router["host"] or not cisco_router["username"]:
-    print("❌ Error: Kulang ang detalye sa iyong .env file!")
-    exit()
+# 1. Listahan ng maraming devices sa network (Multi-Device Inventory)
+network_devices = [
+    {
+        "device_type": "cisco_ios",
+        "host": "192.168.1.1",
+        "username": device_user,
+        "password": device_pass,
+        "port": 22,
+        "name": "Core-Switch-01"
+    },
+    {
+        "device_type": "cisco_ios",
+        "host": "192.168.1.2",
+        "username": device_user,
+        "password": device_pass,
+        "port": 22,
+        "name": "Access-Switch-01"
+    },
+    {
+        "device_type": "cisco_ios",
+        "host": "192.168.1.3",
+        "username": device_user,
+        "password": device_pass,
+        "port": 22,
+        "name": "Access-Switch-02"
+    }
+]
 
-# Listahan ng mga commands na i-o-automate
-config_commands = [
-    "interface GigabitEthernet0/1",
-    "description Link to Core_Switch_01 - Configured via Python Securely",
-    "vlan 10",
-    "name Management_VLAN",
+# Listahan ng VLAN configuration na ibabato sa LAHAT ng switches
+vlan_configs = [
+    "vlan 20",
+    "name IP_Phones_VLAN",
     "exit"
 ]
 
-if SIMULATION_MODE:
-    print(f"[SIMULATION] Ikokonekta sa secure host: {cisco_router['host']}")
-    print(f"[SIMULATION] Gagamitin ang user: {cisco_router['username']}")
-    print("✅ [SIMULATION] Matagumpay ang koneksyon via SSH!")
+# 2. Ang Python For-Loop para sa pag-iterate sa bawat device
+for device in network_devices:
+    print(f"\n[LOOP] Sinasimulan ang proseso para sa: {device['name']} ({device['host']})...")
     
-    print("\n--- IPINAPADALANG CONFIGURATION SET ---")
-    for cmd in config_commands:
-        print(f"Applying: {cmd}")
-    print("---------------------------------------\n")
-    
-    mock_config_output = (
-        "configure terminal\n"
-        "Enter configuration commands, one per line. End with CNTL/Z.\n"
-        "router(config)# interface GigabitEthernet0/1\n"
-        "router(config-if)# description Link to Core_Switch_01 - Configured via Python Securely\n"
-        "router(config-if)# vlan 10\n"
-        "router(config-vlan)# name Management_VLAN\n"
-        "router(config-vlan)# exit\n"
-        "router(config)# end\n"
-        "router#"
-    )
-    
-    print("--- OUTPUT MULA SA SECURE DEVICE ---")
-    print(mock_config_output)
-    print("---------------------------------------\n")
-    print("[SIMULATION] Koneksyon ay ligtas na isinara.")
+    if SIMULATION_MODE:
+        print(f"   -> Connecting via SSH to {device['host']} using user '{device['username']}'...")
+        print("   ✅ Matagumpay ang koneksyon!")
+        print("   -> Ipinapadala ang mga configuration commands...")
+        
+        for cmd in vlan_configs:
+            print(f"      Applying: {cmd}")
+            
+        print(f"   ✅ [SIMULATION] Tapos na i-configure ang {device['name']}. Ligtas na dinisconnect.")
+        print("-" * 50)
+        
+    else:
+        try:
+            from netmiko import ConnectHandler
+            # Gagawa ng kopya ng dictionary na walang 'name' key para hindi mag-error si Netmiko
+            netmiko_device = device.copy()
+            netmiko_device.pop("name")
+            
+            print(f"   -> Kumokonekta nang live sa {device['name']}...")
+            net_connect = ConnectHandler(**netmiko_device)
+            
+            output = net_connect.send_config_set(vlan_configs)
+            print(output)
+            
+            net_connect.disconnect()
+            print(f"   ✅ Tapos na ang {device['name']}.")
+        except Exception as e:
+            print(f"   ❌ Error sa {device['name']}: {e}")
 
-else:
-    try:
-        from netmiko import ConnectHandler
-        print(f"Kumokonekta nang live sa {cisco_router['host']}...")
-        net_connect = ConnectHandler(**cisco_router)
-        
-        print("Ipinapadala ang mga configuration changes...")
-        output = net_connect.send_config_set(config_commands)
-        
-        print("\n--- OUTPUT MULA SA DEVICE ---")
-        print(output)
-        print("-----------------------------\n")
-        
-        net_connect.disconnect()
-    except Exception as e:
-        print(f"❌ Error encountered: {e}")
-
+print("\n=========================================")
+print("  PROSESO TAPOS: Lahat ng devices ay napa-run na! ")
 print("=========================================")
