@@ -1,75 +1,77 @@
 import os
+import logging
 from dotenv import load_dotenv
 
+# I-load ang mga variables mula sa .env file
 load_dotenv()
 
-# Gagawin nating FALSE ang simulation mode para sa error handling demonstration, 
-# para makita natin kung paano sumasalo ng totoong errors ang try-except block.
+# I-define ang Custom Error sa itaas para iwas sa scoping/definition errors
+class ConnectionTimeoutError(Exception): 
+    pass
+
+# 1. I-configure ang Logging Engine ng Python
+# Gagawa ito ng file na 'network_errors.log' at doon isusulat ang mga mangyayari
+logging.basicConfig(
+    filename="network_errors.log",
+    level=logging.ERROR,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+
 SIMULATION_MODE = False
 
 device_user = os.getenv("DEVICE_USER")
 device_pass = os.getenv("DEVICE_PASS")
 
 print("=========================================")
-print("     MODULE 4: ERROR HANDLING (TRY)      ")
+print("     MODULE 4: LOGGING ERRORS TO FILE    ")
 print("=========================================")
 
-# Dito, sinadya nating lagyan ng maling IP address (192.168.1.99) ang pangalawang switch
-# para ma-simulate natin kung paano hahawakan ng script ang koneksyong mabibigo.
 network_devices = [
     {
         "device_type": "cisco_ios",
-        "host": "192.168.1.1", # Ito ay magda-dry-run ng maayos sa simulation fall-through
+        "host": "192.168.1.1",
         "username": device_user,
         "password": device_pass,
         "name": "Core-Switch-01"
     },
     {
         "device_type": "cisco_ios",
-        "host": "192.168.1.99", # ⚠️ DOWN / OFFLINE DEVICE SIMULATION
+        "host": "192.168.1.99", # ⚠️ DOWN / OFFLINE DEVICE
         "username": device_user,
         "password": device_pass,
-        "name": "Access-Switch-01 (OFFLINE TEST)"
+        "name": "Access-Switch-01"
     },
     {
         "device_type": "cisco_ios",
-        "host": "192.168.1.3", # Dapat ma-configure pa rin ito kahit nag-error ang nauna!
+        "host": "192.168.1.3",
         "username": device_user,
         "password": device_pass,
         "name": "Access-Switch-02"
     }
 ]
 
-vlan_configs = ["vlan 30", "name Guest_VLAN", "exit"]
-
 for device in network_devices:
     print(f"\n[LOOP] Sinusubukang i-configure ang: {device['name']} ({device['host']})...")
     
-    # 1. ANG TRY BLOCK: Dito isinusulat ang code na pwedeng mag-error
     try:
         if SIMULATION_MODE:
             print(f"   [SIMULATION] Connected to {device['name']}.")
         else:
-            # Dahil walang totoong device sa lab ngayon, itong linya na ito ay magbabato ng error.
-            # Imbes na mag-crash ang buong program, sasaluhin ito ng 'except' sa ilalim!
             print(f"   -> Kumokonekta sa {device['host']}...")
             
-            # Sinadya nating i-trigger ang error dito para sa lesson
+            # I-trigger ang timeout error para sa offline switch
             if device["host"] == "192.168.1.99":
-                raise ConnectionTimeoutError("Netmiko Timeout: Connection to device timed out after 15 seconds.")
+                raise ConnectionTimeoutError(f"Netmiko Timeout: Hindi maabot ang {device['host']} pagkatapos ng 15 segundo.")
             else:
-                # Kunwari ay matagumpay ang iba para makita ang tuloy-tuloy na loop
                 print(f"   ✅ [MOCK LIVE] Matagumpay na naipadala ang config sa {device['name']}!")
 
-    # 2. ANG EXCEPT BLOCK: Ito ang sasalo kapag sumabog ang code sa 'try'
     except Exception as error_message:
-        print(f"   ❌ [ERROR CAUGHT] Hindi ma-konekta ang {device['name']}.")
-        print(f"   ⚠️ Detalye ng Error: {error_message}")
-        print("   -> Ligtas na nilaktawan ang device na ito. Ipinagpapatuloy ang script...")
+        print(f"   ❌ [ERROR] Hindi ma-konekta ang {device['name']}. Tingnan ang log file!")
+        
+        # 2. ISULAT ANG ERROR SA LOG FILE: Imbes na sa terminal lang, permanenteng ire-record ito
+        logging.error(f"Failed to configure {device['name']} ({device['host']}). Error: {error_message}")
 
 print("\n=========================================")
-print(" PROSESO TAPOS: Hindi nag-crash ang script kahit may error! ")
+print(" PROSESO TAPOS: Suriin ang iyong folder para sa log file! ")
 print("=========================================")
-
-# Simple helper para sa simulation structural error handling
-class ConnectionTimeoutError(Exception): pass
