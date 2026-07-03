@@ -1,1 +1,4 @@
 .env
+
+network_errors.log
+backups/
